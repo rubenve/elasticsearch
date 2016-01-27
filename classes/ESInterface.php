@@ -44,6 +44,40 @@ class ESInterface {
     }
 
     public function putMapping() {
+        // Delete index if it already exists
+        $this->client->indices()->delete(array(
+            'index' => $this->index,
+            'ignore' => 404
+        ));
+
+        // Create index with our ngram analyzer settings
+        $this->client->indices()->create(array(
+            'index' => $this->index,
+            'body' => array(
+                'settings' => array(
+                    'analysis' => array(
+                        'filter' => array(
+                            'edge_ngram_filter' => array(
+                                'type' => 'edge_ngram',
+                                'min_gram' => '3',
+                                'max_gram' => '20'
+                            )
+                        ),
+                        'analyzer' => array(
+                            'edge_ngram_analyzer' => array(
+                                'filter' => array(
+                                    'lowercase',
+                                    'edge_ngram_filter'
+                                ),
+                                'type' => 'custom',
+                                'tokenizer' => 'standard'
+                            )
+                        )
+                    )
+                )
+            )
+        ));
+
         $mapping = array(
             'properties' => array(
                 'guid' => array('type' => 'integer'),
@@ -55,7 +89,7 @@ class ESInterface {
                 'time_created' => array('type' => 'integer'),
                 'time_updated' => array('type' => 'integer'),
                 'type' => array('type' => 'string', 'index' => 'not_analyzed'),
-                'tags' => array('type' => 'string', 'index' => 'not_analyzed')
+                'tags' => array('type' => 'string', 'index' => 'not_analyzed'),
             )
         );
 
@@ -70,6 +104,27 @@ class ESInterface {
                 )
             ));
         }
+
+        // Add title and description field mapping to object
+        $mapping['properties']['title'] = array(
+            'type' => 'string',
+            'index_analyzer' => 'edge_ngram_analyzer',
+            'search_analyzer' => 'standard'
+        );
+        $mapping['properties']['description'] = array(
+            'type' => 'string',
+            'index_analyzer' => 'edge_ngram_analyzer',
+            'search_analyzer' => 'standard'
+        );
+
+        $type = 'object';
+        $return &= $this->client->indices()->putMapping(array(
+            'index' => $this->index,
+            'type' => $type,
+            'body' => array(
+                $type => $mapping
+            )
+        ));
 
         $mapping = array(
             'properties' => array(
